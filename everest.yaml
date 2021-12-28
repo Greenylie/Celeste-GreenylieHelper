@@ -1,0 +1,6 @@
+- Name: GreenylieHelper
+  Version: 1.0.0
+  DLL: GreenylieHelper/bin/Debug/GreenylieHelper.dll
+  Dependencies:
+    - Name: Everest
+      Version: 1.3164.0

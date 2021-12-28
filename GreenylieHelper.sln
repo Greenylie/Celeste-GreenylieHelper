@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30907.101
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GreenylieHelper", "GreenylieHelper\GreenylieHelper.csproj", "{24EFF4DB-554C-491F-89AB-158C27A9F52B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{24EFF4DB-554C-491F-89AB-158C27A9F52B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{24EFF4DB-554C-491F-89AB-158C27A9F52B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{24EFF4DB-554C-491F-89AB-158C27A9F52B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{24EFF4DB-554C-491F-89AB-158C27A9F52B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2F4A1075-DC66-4CCF-93E6-C889FB96B995}
+	EndGlobalSection
+EndGlobal
