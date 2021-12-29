@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
-using Celeste;
+using System.Collections.Generic;
+using System.Diagnostics;
 using Celeste.Mod.Entities;
 using Microsoft.Xna.Framework;
 using Monocle;
@@ -11,112 +12,160 @@ namespace Celeste.Mod.GreenylieHelper.SharedModules
 	[CustomEntity(new string[] { "GreenylieHelper/InputProgressBar" })]
 	public class InputProgressBar : Entity
 	{
-		private Level level;
+		private Level level; 
 
-		private Image bar;
+		private Image bar; //Actual image of the bar, gathered using barTexture in ProgressBarRoutine()
 
-		private Image progress;
+		private Image progress; //Actual image of the progress, gathered using progressTexture in ProgressBarRoutine()
 
-		private bool waitForKeyPress;
+		private Image icon; //Actual image of the icon, gathered using iconTexture in ProgressBarRoutine()
 
-		private bool wasPressed = false;
+		public string barTexture = "greenylie/inputprogressbar/bar";
 
-		private string barTexture;
+		public string progressTexture = "greenylie/inputprogressbar/progress";
 
-		private string progressTexture;
+		public string iconTexture = "greenylie/inputprogressbar/icon_orangeberry";
 
-		private float timer;
+		private RumbleStrength rumbleStrength; //RumbleStrength based on difficulty selected in the constructor
 
-		private float percent = 0f;
+		public float inputMinusValue = 0.05f; //Subtraction number of the input progressbar (objective int 1)
 
-		public float inputMinusValue = 0.05f;
+		private int inputMinusValueTimerCurrent = 0; //Current value of MinusValue Timer refill
 
-		private int inputMinusValueTimerCurrent = 0;
+		public int inputMinusValueTimer = 15; //Maximum value of MinusValue Timer
 
-		private int inputMinusValueTimer = 15;
+		public float inputPlusValue = 0.1f; //Sum number of the input progressbar (objective int 1)
 
-		public float inputPlusValue = 0.1f;
+		private float inputCurrentValue = 0f; //Current value of the progressbar (requires 1 to succeed)
 
-		private float inputCurrentValue = 0f;
+		public int failTimer = 5; //Time countdown for progressbar fail
 
+		private bool wasPressed = false; //Used to verify unpress of the button to disable abusing
 
-		public InputProgressBar(float inputPlusValue, float inputCurrentValue, string difficulty, string barTexture, string progressTexture)
+		private bool rotationNegative = false; //Variable to alternate rotation of the progressbar on input
+
+		public InputProgressBar(string difficulty, float inputCurrentValue = 0, int failTimer = 5)
 		{
+			/*
+			 * Generates an InputProgressBar entity which requires inputCurrentValue to reach 1 to succeed.
+			 * Diffculties are predefined: super easy, easy, medium, hard, nightmare, impossible.
+			 * You can specify the initial value of the progressbar by giving an inputCurrentValue
+			 * inputPlusValue is the sum value per input and it's equal to 0.1
+			 * inputMinusValue is the subtraction per timer
+			 * inputMinusValueTimer is the timer for the subtraction, it changes with difficulties
+			 * Textures are customizable by editing barTexture and progressTexture fields with a string of the GUI directoy
+			 */
+
 			base.Tag = Tags.HUD;
 			this.level = Engine.Scene as Level;
-			if (inputPlusValue > 0f && inputPlusValue <= 1f) this.inputPlusValue = inputPlusValue;
-			if (inputCurrentValue >= 0f && inputCurrentValue <= 0.9f) this.inputCurrentValue = inputCurrentValue;
+
+			this.failTimer = failTimer;
+
+			if (inputCurrentValue >= 0f && inputCurrentValue <= 0.9f) //Verifies that CurrentValue is a functional number, otherwise default 0
+			{
+				this.inputCurrentValue = inputCurrentValue;
+			}
+			else
+			{
+				this.inputCurrentValue = 0f;
+			}
 
 			if (difficulty.ToLower() == "super easy")
-            {
+			{
 				this.inputMinusValue = 0f;
-            }
+				this.inputMinusValueTimerCurrent = 0;
+			}
 			else if (difficulty.ToLower() == "easy")
-            {
-				this.inputMinusValueTimer = 20;
-            }
-			else if (difficulty.ToLower() == "medium")
-            {
-				this.inputMinusValueTimer = 15;
-            }
-			else if (difficulty.ToLower() == "hard")
-            {
+			{
+				rumbleStrength = RumbleStrength.Climb;
 				this.inputMinusValueTimer = 10;
-            }
-			else if (difficulty.ToLower() == "nightmare")
-            {
+			}
+			else if (difficulty.ToLower() == "medium")
+			{
+				rumbleStrength = RumbleStrength.Light;
 				this.inputMinusValueTimer = 5;
-            }
+			}
+			else if (difficulty.ToLower() == "hard")
+			{
+				rumbleStrength = RumbleStrength.Medium;
+				this.inputMinusValueTimer = 3;
+			}
+			else if (difficulty.ToLower() == "nightmare")
+			{
+				rumbleStrength = RumbleStrength.Strong;
+				this.inputMinusValueTimer = 2;
+			}
 			else if (difficulty.ToLower() == "impossible")
-            {
-				this.inputMinusValueTimer = 1;
-            }
-
-			this.barTexture = barTexture;
-			this.progressTexture = progressTexture;
+			{
+				rumbleStrength = RumbleStrength.Strong;
+				this.inputMinusValue = 0.15f;
+				this.inputMinusValueTimer = 2;
+			}
 		}
 
 		public IEnumerator MainRoutine()
 		{
 			yield return 0.5f;
 			yield return ProgressBarRoutine();
+			yield return ProgressBarIconRoutine();
 
-			while (inputCurrentValue < 1.0f)
-            {
+			Stopwatch time = new Stopwatch(); //Used to verify elapsed seconds
+			time.Start();
 
-				if (!Input.MenuConfirm.Pressed)
+			while (inputCurrentValue < 1.0f && time.Elapsed.Seconds < failTimer)
+			{
+				Logger.Log("GreenylieHelper: InputProgressBar.MainRoutine - time.ElaspedGameTime.Seconds", time.Elapsed.Seconds.ToString());
+
+				if (progress.Rotation != 0 && bar.Rotation != 0)
                 {
-					if (inputMinusValueTimerCurrent == 0)
-                    {
-						if (inputCurrentValue - inputMinusValue < 0f)
-						{
-							inputCurrentValue = 0f;
-						}
-						else
-						{
-							inputCurrentValue = inputCurrentValue - inputMinusValue;
-						}
-						yield return ProgressBarChangeXValue(inputCurrentValue);
-						inputMinusValueTimerCurrent = inputMinusValueTimer;
+					yield return ProgressBarChangeRotation(0f);
+				}
+
+				if (inputMinusValueTimerCurrent == 0)
+				{
+					if (inputCurrentValue - inputMinusValue < 0f)
+					{
+						inputCurrentValue = 0f;
 					}
-					inputMinusValueTimerCurrent--;
-					yield return null;
-                }
-				else
-                {
+					else
+					{
+						inputCurrentValue = inputCurrentValue - inputMinusValue;
+					}
+					inputMinusValueTimerCurrent = inputMinusValueTimer;
+
+					if (this.inputMinusValue != 0 && this.inputMinusValueTimer != 0 && inputCurrentValue != 0)
+					{
+						Input.Rumble(rumbleStrength, RumbleLength.Short);
+					}
+
+				}
+				inputMinusValueTimerCurrent--;
+
+				if (Input.MenuConfirm.Check && !wasPressed)
+				{
 					if (inputCurrentValue + inputPlusValue > 1.0f)
 					{
 						inputCurrentValue = 1.0f;
 					}
 					else
-					{ 
+					{
 						inputCurrentValue = inputCurrentValue + inputPlusValue;
 					}
-					Logger.Log("GreenylieHelper", "Press");
+
+					yield return ProgressBarChangeRotation(auto: true);
+					wasPressed = true;
+				}
+				else if (!Input.MenuConfirm.Check && wasPressed)
+				{
+					wasPressed = false;
+				}
+
+				if (progress.Position.X != inputCurrentValue)
+				{
 					yield return ProgressBarChangeXValue(inputCurrentValue);
 				}
 
-            }
+			}
 			yield return EndRoutine();
 		}
 
@@ -125,32 +174,55 @@ namespace Celeste.Mod.GreenylieHelper.SharedModules
 			bar = new Image(GFX.Gui[barTexture]);
 			bar.CenterOrigin();
 			progress = new Image(GFX.Gui[progressTexture]);
+			progress.SetColor(Color.Orange);
 			progress.CenterOrigin();
-			percent = 0f;
+			icon = new Image(GFX.Gui[iconTexture]);
+			icon.CenterOrigin();
+			float percent = 0f;
 			while (percent < 1f)
 			{
 				percent += Engine.DeltaTime;
-				bar.Position = Vector2.Lerp(new Vector2(992f, 1080f + bar.Height / 2f), new Vector2(960f, 540f), Ease.BackOut(percent));
+				bar.Position = Vector2.Lerp(new Vector2(992f, 1080f + bar.Height / 2f), new Vector2(960f, 840f), Ease.BackOut(percent));
 				bar.Rotation = MathHelper.Lerp(0.5f, 0f, Ease.BackOut(percent));
-				progress.Position = Vector2.Lerp(new Vector2(992f, 1080f + progress.Height / 2f), new Vector2(960f, 540f), Ease.BackOut(percent));
+				progress.Position = Vector2.Lerp(new Vector2(992f, 1080f + progress.Height / 2f), new Vector2(960f, 840f), Ease.BackOut(percent));
 				progress.Rotation = MathHelper.Lerp(0.5f, 0f, Ease.BackOut(percent));
-				progress.Scale = new Vector2(0f,1f);
+				progress.Scale = new Vector2(inputCurrentValue, 1f);
+				icon.Position = Vector2.Lerp(new Vector2(992f, 1080f + bar.Height / 2f), new Vector2(960f, 840f), Ease.BackOut(percent));
+				yield return null;
+			}
+		}
+
+		public IEnumerator ProgressBarIconRoutine()
+        {
+			
+			float percent = 0f;
+			Random rnd = new Random();
+			while (percent < 1f)
+			{
+				percent += Engine.DeltaTime * 1.6f;
+				icon.Rotation = MathHelper.Lerp(rnd.Next((new List<float> {2f,-2f}).Count), 0f, Ease.BackInOut(percent));
 				yield return null;
 			}
 		}
 
 		public IEnumerator ProgressBarChangeXValue(float value)
-        {
-			Logger.Log("GreenylieHelper: InputProgressBar.inputCurrentValue", inputCurrentValue.ToString());
-			Logger.Log("GreenylieHelper: InputProgressBar.ProgressBarChangeXValue", "X changed from " + progress.Scale.X.ToString() + " to " + value.ToString());
-			percent = 0f;
-			while (percent < 1f)
-			{
-				percent += Engine.DeltaTime;
-				progress.Scale = Vector2.Lerp(progress.Scale, new Vector2(value, progress.Scale.Y), Ease.BackIn(percent));
-			}
+		{
+			progress.Scale = Vector2.SmoothStep(progress.Scale, new Vector2(value, progress.Scale.Y), 0.5f);
 			yield return null;
-        }
+		}
+
+		public IEnumerator ProgressBarChangeRotation(float value = 0f, bool auto = false)
+		{
+            if (auto)
+            {
+				value = 0.05f;
+				if (this.rotationNegative) value = value * -1; else rotationNegative = false;
+            }
+			bar.Rotation = MathHelper.SmoothStep(bar.Rotation, value, 0.3f);
+			progress.Rotation = MathHelper.SmoothStep(progress.Rotation, value, 0.3f);
+			icon.Rotation = MathHelper.SmoothStep(icon.Rotation, (value * -1.5f) , 0.3f);
+			yield return null;
+		}
 
 		public IEnumerator EndRoutine()
 		{
@@ -170,13 +242,17 @@ namespace Celeste.Mod.GreenylieHelper.SharedModules
 
 		public override void Update()
 		{
-			if (waitForKeyPress)
-			{
-				timer += Engine.DeltaTime;
-			}
 			if (progress != null && progress.Visible)
 			{
 				progress.Update();
+			}
+			if (bar != null && progress.Visible)
+            {
+				bar.Update();
+            }
+			if (icon != null && icon.Visible)
+			{
+				icon.Update();
 			}
 		}
 
@@ -194,6 +270,10 @@ namespace Celeste.Mod.GreenylieHelper.SharedModules
 			if (progress != null && progress.Visible)
 			{
 				progress.Render();
+			}
+			if (icon != null && icon.Visible)
+			{
+				icon.Render();
 			}
 		}
 	}
